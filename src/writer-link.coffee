@@ -65,7 +65,7 @@ class WriteLinkWorker
     switch
       when z_.match(cmd.h, drt.ConnectDataWriterCmd)
         console.log("Setting-up Socket for DW : " + cmd.eid + ", at " + cmd.url)
-        setupWriterSocket(cmd.url, cmd.eid)
+        setupWriterSocket(this, cmd.url, cmd.eid)
 
       when z_.match(cmd.h, drt.WriteDataCmd)
         socket = socketMap[cmd.eid]
