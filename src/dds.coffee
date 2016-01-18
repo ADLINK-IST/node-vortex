@@ -189,7 +189,13 @@ Durability =
 ###
 class EntityQos
   constructor: (p, ps...) ->
-    @policies =  ps.concat(p)
+    @policies =
+      if arguments.length == 0
+        []
+      else if p
+        ps.concat(p)
+      else
+        ps
 
   add: (p...) -> new EntityQos(@policies.concat(p))
 
