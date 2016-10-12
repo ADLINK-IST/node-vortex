@@ -30,16 +30,17 @@ urlMap = {}
 setupWriterSocket = (worker, url, eid) ->
   socket = new WebSocket(url)
 
-  console.log("Created Websocket for DW at #{url}")
+  console.log("[writer-link] Created Websocket for DW at #{url}")
   socketMap[eid] = socket
   urlMap[eid] = url
 
   socket.onopen = (evt) =>
-    console.log("DW Writer Websocket is open")
+    console.log("[writer-link] DW Writer Websocket is open")
+    connected = true;
     worker.emit('postMessage', drt.OnConnectedDataWriter(url, eid))
 
   socket.onclose = (evt) =>
-    console.log("DW Websocket is closed")
+    console.log("[writer-link] DW Websocket is closed at #{url}, eid #{eid}")
     delete socketMap[eid]
     worker.emit('postMessage', drt.OnDisconnectedDataWriter(url, eid))
 
@@ -48,7 +49,6 @@ disconnect = () ->
     connected = false
     for eid,s of socketMap
       s.close()
-      rworker.emit('postMessage', drt.OnDisconnectedDataWriter(urlMap[eid], eid))
     socketMap = {}
     urlMap = {}
 
@@ -64,22 +64,33 @@ class WriteLinkWorker
 
     switch
       when z_.match(cmd.h, drt.ConnectDataWriterCmd)
-        console.log("Setting-up Socket for DW : " + cmd.eid + ", at " + cmd.url)
+        console.log("[writer-link] Setting-up Socket for DW : #{cmd.eid}, at #{cmd.url}")
         setupWriterSocket(this, cmd.url, cmd.eid)
 
       when z_.match(cmd.h, drt.WriteDataCmd)
         socket = socketMap[cmd.eid]
-        s = cmd.data
-        try
-          socket.send(s)
-        catch e
-          console.log("Exception while sending data")
-          console.log(JSON.stringify(e))
+        if (socket && socket.readyState == 1)
+          s = cmd.data;
+          try
+            return socket.send("write/" + s)
+          catch e
+            console.log("[writer-link] Exception while sending data")
+            return console.log(JSON.stringify(e))
+
+      when z_.match(cmd.h, drt.DisposeDataCmd)
+        socket = socketMap[cmd.eid]
+        if (socket && socket.readyState == 1)
+          s = cmd.data;
+          try
+            return socket.send("dispose/" + s)
+          catch e
+            console.log("[writer-link] Exception while sending data")
+            return console.log(JSON.stringify(e))
 
       when z_.match(cmd.h, drt.Disconnect)
         disconnect()
 
       else
-        console.log("Reader Worker Received Unknown Command!")
+        console.log("[writer-link] Reader Worker Received Unknown Command!")
 
 module.exports = WriteLinkWorker

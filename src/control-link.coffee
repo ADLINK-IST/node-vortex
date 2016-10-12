@@ -135,11 +135,15 @@ class ControlLink
   disconnect: () ->
     if (@connected)
       @connected = false
-      @ctrlSock.map((s) -> s.close())
+      @ctrlSock.map((s) ->
+        console.log("[control-link] closing socket")
+        s.close()
+      )
       @crtSock = z_._None
 
 # Creates a remote topic
   createTopic: (topic, qos, eid) ->
+    console.log("[control-link] Creating Topic for eid = " + eid)
     cmd = CreateTopicMsg(@sn, topic)
     @tmap[@sn] = eid
     @sn = @sn + 1
@@ -173,6 +177,7 @@ class ControlLink
       when z_.match(msg.h, {cid: drt.CommandId.OK, ek: drt.EntityKind.DataReader})
         guid = msg.b.eid
         url = Config.runtime.readerPrefixURL(@server) + '/' + guid
+        console.log("[control-link] sn = " + msg.h.sn + ", eid = " + @drmap[msg.h.sn])
         evt = drt.OnCreatedDataReader(url, @drmap[msg.h.sn])
         delete @drmap[msg.h.sn]
         this.emit('postMessage', evt)
@@ -180,11 +185,13 @@ class ControlLink
       when z_.match(msg.h, {cid: drt.CommandId.OK, ek: drt.EntityKind.DataWriter})
         guid = msg.b.eid
         url = Config.runtime.writerPrefixURL(@server) + '/' + guid
+        console.log("[control-link] sn = " + msg.h.sn + ", eid = " + @dwmap[msg.h.sn])
         evt = drt.OnCreatedDataWriter(url, @dwmap[msg.h.sn])
         delete @dwmap[msg.h.sn]
         this.emit('postMessage', evt)
 
       when z_.match(msg.h, {cid: drt.CommandId.OK, ek: drt.EntityKind.Topic})
+        console.log("[control-link] Topic sn = " + msg.h.sn + "  eid = " + @tmap[msg.h.sn])
         evt = drt.OnCreatedTopic(@tmap[msg.h.sn])
         delete @tmap[msg.h.sn]
         this.emit('postMessage', evt)
@@ -210,24 +217,28 @@ class ControlLinkWorker
 
   postMessage: (cmd) ->
 
+    console.log("[control-link] CtrlWorker received cmd: " + JSON.stringify(cmd))
     switch
       when z_.match(cmd.h, drt.ConnectCmd)
+        console.log("[control-link]: cmd = Connect (" + cmd.url + ")")
         @ctrlLink.connect(cmd.url, cmd.authToken)
 
       when z_.match(cmd.h, drt.CreateTopicCmd)
         @ctrlLink.createTopic(cmd.topic, cmd.qos, cmd.eid)
 
       when z_.match(cmd.h, drt.CreateDataReaderCmd)
+        console.log("[control-link] CreateDataReader: " + cmd.eid)
         @ctrlLink.createDataReader(cmd.topic, cmd.qos, cmd.eid)
 
       when z_.match(cmd.h, drt.CreateDataWriterCmd)
+        console.log("[control-link] CreateDataWriter: " + cmd.eid)
         @ctrlLink.createDataWriter(cmd.topic, cmd.qos, cmd.eid)
 
       when z_.match(cmd.h, drt.Disconnect)
         @ctrlLink.disconnect()
 
       else
-        console.log("[control-worker] Worker Received Unknown Command!")
+        console.log("[control-link] Worker Received Unknown Command!")
 
 module.exports = ControlLinkWorker
 
