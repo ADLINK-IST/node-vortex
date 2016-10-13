@@ -30,6 +30,7 @@ CommandId =
   Close:        5
   Write:        6
   Log:          7
+  Dispose:      8
 
 EventId =
   Error:         0
@@ -79,6 +80,8 @@ CreateDataWriterCmd = Header(CommandId.Create, EntityKind.DataWriter)
 CreateDataWriter = CreateEntity(CreateDataWriterCmd)
 CloseDataWriterCmd = Header(CommandId.Close, EntityKind.DataWriter)
 CloseDataWriter = CreateEntity(CloseDataWriterCmd)
+DisposeDataWriterCmd = Header(CommandId.Dispose, EntityKind.DataWriter);
+DisposeDataWriter = CreateEntity(DisposeDataWriterCmd);
 
 dds.ConnectCmd = ConnectCmd
 dds.Connect = Connect
@@ -106,11 +109,15 @@ ConnectDataWriter = (addr, id) -> h:ConnectDataWriterCmd, url: addr, eid: id
 WriteDataCmd = Header(CommandId.Write, EntityKind.DataWriter)
 WriteData = (s, id) -> h: WriteDataCmd, data: s, eid: id
 
+DisposeDataCmd = Header(CommandId.Dispose, EntityKind.DataWriter);
+DisposeData = (s, id) -> h: DisposeDataCmd, data: s, eid: id
 
 dds.ConnectDataWriterCmd = ConnectDataWriterCmd
 dds.ConnectDataWriter = ConnectDataWriter
 dds.WriteDataCmd = WriteDataCmd
 dds.WriteData = WriteData
+dds.DisposeDataCmd = DisposeDataCmd;
+dds.DisposeData = DisposeData
 ########################################################################################################################
 ##   Receiver Worker Commands
 ########################################################################################################################

@@ -61,8 +61,6 @@ class Runtime
     @drmap = {}
     @dwmap = {}
     @tmap = {}
-    @connected = false
-    @closed = false
     @onconnect = (evt) ->
       console.log("[dds-runtime]: onconnect")
       @connected = true
@@ -76,6 +74,8 @@ class Runtime
       console.log("[dds-runtime]: ondisconnect")
       @connected = false
 
+    @connected = false
+    @closed = false
     @needToReEstablishConnections = false
     @ctrlLink = new ControlLink()
     console.log("[dds-runtime]: ctrlLink (#{@ctrlLink})")
@@ -146,7 +146,7 @@ class Runtime
    @param {Topic} t - Topic to be registered
   ###
   registerTopic: (t) ->
-    console.log("[[dds-runtime]: Defining topic #{t.tinfo.tname}")
+    console.log("[dds-runtime]: Defining topic #{t.tinfo.tname}")
     eid = @generateEntityId()
     t.eid = eid
     @tmap[eid] = t
@@ -156,20 +156,43 @@ class Runtime
 
 ## -- TODO: ---------------------------------------------------------------------------------
   unregisterTopic: (t) ->
+## -------------------------------------------------------------------------------------------
   closeDataReader: (dr) ->
+    console.log("[dds-runtime]: Cleaning up DR with eid = #{dr.eid}")
+    delete @drmap[dr.eid]
 
   closeDataWriter: (dw) ->
+    console.log("[dds-runtime]: Cleaning up DW with eid = #{dw.eid}")
+    delete @dwmap[dw.eid]
+
 ## -------------------------------------------------------------------------------------------
   writeData: (dw, s) =>
     data = if (Array.isArray(s)) then s else [s]
-    sdata = JSON.stringify(data)
+    sdata = JSON.stringify(data, (key, value) ->
+      if (value != value)
+        return 'NaN';
+      value;
+    )
     cmd = drt.WriteData(sdata, dw.eid)
     @sendWorker.postMessage(cmd)
+
+  disposeData: (dw, s) =>
+    data = if (Array.isArray(s)) then s else [s]
+    sdata = JSON.stringify(data, (key, value) ->
+      if (value != value)
+        return 'NaN'
+      value
+    )
+    cmd = drt.DisposeData(sdata, dw.eid);
+    @sendWorker.postMessage(cmd)
+
 
   onCtrlWorkerMessage: (evt) =>
     e = evt
     switch
       when z_.match(e.h, drt.ConnectedRuntimeEvt)
+        @connected = true;
+        console.log("[dds-runtime]: Runtime Connected.")
         if (@needToReEstablishConnections)
           console.log("[dds-runtime]: Re-establishing DataReaders and DataWriters connections")
           for eid,dw of @dwmap
@@ -182,7 +205,7 @@ class Runtime
 
       when z_.match(e.h, drt.DisconnectedRuntimeEvt)
         console.log("[dds-runtime]: Runtime Disconnected.")
-        @ondisconnect(e)
+        @disconnect()
 
       when z_.match(e.h, drt.CreatedTopicEvt)
         console.log("[dds-runtime]: Topic created with eid = #{e.eid}")
@@ -198,9 +221,11 @@ class Runtime
         cmd = drt.ConnectDataWriter(e.url, e.eid)
         @sendWorker.postMessage(cmd)
 
-
       when z_.match(e.h, drt.WriteLogCmd)
         console.log("[dds-runtime]: #{e.kind }]: #{e.msg}")
+
+      when z_.match(e.h.eid, drt.EventId.Error)
+        console.log("[dds-runtime]: #{e.h.kind }]: #{e.msg}")
 
       else
         console.log("[dds-runtime]: Driver received invalid command from CtrlWorker")
@@ -215,7 +240,9 @@ class Runtime
         @dwmap[e.eid].onconnect(e)
 
       when z_.match(e.h, drt.DisconnectedDataWriterEvt)
-        @dwmap[e.eid].ondisconnect(e)
+        if (@dwmap[e.eid])
+          return @dwmap[e.eid].ondisconnect(e)
+        break;
 
       when z_.match(e.h, drt.WriteLogCmd)
         console.log("[dds-runtime]: [Log: #{e.kind }]: #{e.msg}")
@@ -231,10 +258,14 @@ class Runtime
         @drmap[e.eid].onconnect(e)
 
       when z_.match(e.h, drt.DisconnectedDataReaderEvt)
-        @drmap[e.eid].ondisconnect(e)
+        if (@drmap[e.eid])
+          return @drmap[e.eid].ondisconnect(e)
+        break
 
       when z_.match(e.h, drt.DataAvailableEvt)
-        @drmap[e.eid].onDataAvailable(e.data)
+        if (@drmap[e.eid])
+          return @drmap[e.eid].onDataAvailable(e.data)
+        break
 
       when z_.match(e.h, drt.WriteLogCmd)
         console.log("[dds-runtime]: [Log: #{e.kind }]: #{e.msg}")
@@ -258,6 +289,7 @@ class Runtime
       @rcvWorker.postMessage(drt.Disconnect)
       @drmap = {}
       @dwmap = {}
+      console.log("[dds-runtime]: calling close...")
       @onclose()
 
 

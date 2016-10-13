@@ -30,16 +30,17 @@ urlMap = {}
 setupReaderSocket = (worker, url, eid) ->
   socket = new WebSocket(url)
 
-  console.log("Created Websocket for DR at #{url}")
+  console.log("[reader-link] Created Websocket for DR at #{url}")
   socketMap[eid] = socket
   urlMap[eid] = url
 
   socket.onopen = (evt) =>
-    console.log("DR Websocket is open")
+    console.log("[reader-link] DR Websocket is open")
+    connected = true;
     worker.emit('postMessage', drt.OnConnectedDataReader(url, eid))
 
   socket.onclose = (evt) =>
-    console.log("DR Websocket is closed")
+    console.log("[reader-link] DR Websocket is closed")
     delete socketMap[eid]
     delete urlMap[eid]
     worker.emit('postMessage', drt.OnDisconnectedDataReader(url, eid))
@@ -54,7 +55,7 @@ disconnect = (worker) ->
     connected = false
     for eid,s of socketMap
       s.close()
-      worker.emit('postMessage', OnDisconnectedDataReader(urlMap[eid], eid))
+      worker.emit('postMessage', drt.OnDisconnectedDataReader(urlMap[eid], eid))
     socketMap = {}
     urlMap = {}
 
@@ -69,16 +70,16 @@ class ReadLinkWorker
   postMessage: (cmd) ->
     switch
       when z_.match(cmd.h, drt.ConnectDataReaderCmd)
-        console.log("Setting-up Socket for : " + cmd.eid + ", at " + cmd.url)
+        console.log("[reader-link] Setting-up Socket for : " + cmd.eid + ", at " + cmd.url)
         setupReaderSocket(this, cmd.url, cmd.eid)
 
-      #when z_.match(cmd.h, drt.Connect)
-      #  connect(this)
+      when z_.match(cmd.h, drt.Connect)
+        connect()
 
       when z_.match(cmd.h, drt.Disconnect)
         disconnect(this)
 
       else
-        console.log("Reader Worker Received Unknown Command!")
+        console.log("[reader-link] Reader Worker Received Unknown Command!")
 
 module.exports = ReadLinkWorker
